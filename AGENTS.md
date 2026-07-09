@@ -16,7 +16,7 @@ Use `PLAN.md` as the source of truth for MVP goals, requirements, non-goals, and
 - Do not synthesize the "meow" source for the MVP. Use user-provided meow audio or fetch a licensed public sample.
 - Use a simple Gradio-based browser dashboard for manual use, not a native GUI toolkit such as Tkinter.
 - The optional browser dashboard should be a convenience layer over the same importable functions, with in-browser playback and WAV download.
-- Use `scripts/setup.ps1` and `scripts/verify_env.ps1` for environment setup before piecemeal dependency troubleshooting.
+- Use the `Makefile` targets (`make setup`, `make verify`, `make test`, `make run`) for environment setup before piecemeal dependency troubleshooting.
 
 ## Engineering Constraints
 
@@ -35,10 +35,16 @@ Use `PLAN.md` as the source of truth for MVP goals, requirements, non-goals, and
 
 The MVP is:
 
-`local song or YouTube URL -> local source audio -> Demucs or provided stems -> vocal pitch and event analysis -> sample-based meow rendering -> mixdown`
+`local song or YouTube URL -> local source audio -> Demucs or provided stems -> melody -> discrete semitone-quantized NOTES -> one whole pitched meow per note -> mixdown -> MeowScore`
 
-Pitch rendering maps the original melody contour into a configurable cat register rather than tracking singer pitch literally. Dashboard controls expose lowest pitch, highest pitch, and contour strength.
+The target is the established "cat cover" formula: a sequence of distinct, recognizable meows — one per musical note, in tune — NOT a continuous drone and NOT chopped tone fragments. The default `notes` engine segments the melody into notes, snaps to semitones, octave-transposes into the cat register (preserving intervals), and renders one whole meow per note (pitch-shifted via resample or formant-preserving PSOLA; short notes compressed, long notes looped). Samples are low-passed and body-isolated first, because the 8 kHz CatMeows recordings are muffled/noisy — sample quality is a hard limit.
+
+Two experimental engines exist but sounded worse and are not default: `instrument` (continuous TD-PSOLA glide -> drone) and `granular` (per-onset splicing -> chopped).
+
+Use `meowsic.evaluate.evaluate_render` (MeowScore) only as a rough guide — it rewards on-beat density and does NOT capture "catness" or musicality, so trust listening for final decisions. The `.meowsic-dashboard/` workspace holds ad-hoc sweep/A-B/diagnostic scripts and generated audio; it is git-ignored and must not be committed.
 
 It is not yet:
 
 `arbitrary copyrighted song -> perfect neural cat singer cover`
+
+(Note: A high-fidelity Deep Learning pipeline using BS-RoFormer, FCPE, ContentVec, and SaMoye-SVC will be explored as a future extension once the deterministic approach caps out.)

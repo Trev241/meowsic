@@ -84,10 +84,11 @@ The result may sound processed. Musical recognizability is a higher priority tha
 2. Load optional user-provided stems.
 3. If stems are not provided, run Demucs to derive vocal and instrumental/no-vocals stems.
 4. Estimate pitch and energy from the vocal stem.
-5. Detect syllable-like events from voiced regions and energy onsets.
-6. Automatically fetch the default CC-BY CatMeows sample from Zenodo if no meow sample is provided by the user.
-7. Render each event by pitch-shifting and time-stretching the meow sample to follow the original pitch contour and loudness envelope.
+5. Segment the melody into discrete, semitone-quantized **notes** (default `notes` engine), octave-transposed into the cat register so the tune stays in key. (Experimental `instrument`/`granular` engines use onset/energy event detection instead.)
+6. Automatically fetch the default CatMeows sample from Zenodo if no meow sample is provided (default: `B_CAN01_EU_FN_GIA01_205.wav`, a uniform meow).
+7. Clean the meow (low-pass to remove HF grain, isolate the loud body) and render one whole recognizable meow per note, pitch-shifted (resample or PSOLA) and fit to the note's duration (compress short notes, loop long ones).
 8. Mix with instrumental and write WAV output.
+9. Optionally score the result with `evaluate_render` (MeowScore) — a guide, not a substitute for listening.
 
 Pitch rendering should preserve the original melody contour while mapping the absolute pitches into a configurable cat-like register. This avoids forcing every meow to the singer's exact pitch when that pitch would sound unnaturally high or low for the selected sample.
 
@@ -96,6 +97,27 @@ The current implementation uses:
 - `cat_min_pitch_hz` for the lowest rendered meow pitch.
 - `cat_max_pitch_hz` for the highest rendered meow pitch.
 - `cat_pitch_contour_strength` to blend between a flatter cat register and stronger original melody contour.
+
+### Rhythm And Rendering Quality
+
+"A cat singing a song" is a sequence of distinct, recognizable meows — one per musical note, in tune — not a continuous drone and not chopped tone fragments. The default note engine therefore:
+
+- Segments the melody into discrete notes and snaps each to the nearest semitone (`note_min_duration`, `note_merge_duration`) so it is in tune and each meow has room to be recognizable.
+- Octave-transposes the melody into the cat register (`cat_min/max_pitch_hz`), preserving intervals.
+- Renders one whole meow per note, pitch-shifted (`pitch_shift_method`: `resample` or formant-preserving `psola`) and fit to the note (`note_fit`: `compress` scales the whole meow; `trim` uses the onset; long notes loop).
+- Cleans the sample first: low-pass (`meow_lowpass_hz`) to remove HF grain and loud-body isolation so notes play the meow, not a noisy lead-in.
+
+Sample quality is a hard limit: the 8 kHz CatMeows recordings are muffled; a clean 44.1 kHz meow sounds materially better. Users can audition samples through the dashboard picker.
+
+### Measuring Quality
+
+`evaluate_render` compares a rendered meow vocal against the source vocal and returns a **MeowScore** in `[0, 1]`:
+
+- rhythm: onset F-measure between meow triggers and vocal note attacks,
+- melody: correlation of log-F0 contours,
+- dynamics: correlation of loudness envelopes.
+
+This makes parameter changes measurable rather than purely subjective and is surfaced in the dashboard after each render.
 
 ### YouTube Track Ingestion
 
@@ -114,8 +136,8 @@ Requirements:
 
 The project includes:
 
-- `scripts/setup.ps1` to create `.venv` and install all optional dependency groups.
-- `scripts/verify_env.ps1` to print the installed versions and Torchaudio audio backends.
+- A `Makefile` (`make setup`) to create `.venv` and install all optional dependency groups.
+- A `Makefile` (`make verify`) to print the installed versions and Torchaudio audio backends.
 
 The tested Windows Demucs stack is:
 
@@ -165,7 +187,7 @@ Prefer CC0. CC BY may be allowed when attribution metadata is preserved. Restric
 - Keep `yt-dlp` isolated behind an adapter so the core package can import without `yt-dlp` installed.
 - Keep Gradio isolated to the dashboard entry point so the core package can import without dashboard dependencies installed.
 - Demucs integration should fail with actionable errors when dependencies, models, or compute are unavailable.
-- Prefer `scripts/setup.ps1` and `scripts/verify_env.ps1` before troubleshooting missing dependency issues.
+- Prefer the `Makefile` targets (`make setup`, `make verify`) before troubleshooting missing dependency issues.
 - Keep `yt-dlp` updated through the setup script.
 - YouTube ingestion should require explicit user action and should not bypass rights/platform-term warnings.
 - Preserve user-owned files and do not overwrite outputs unless explicitly requested by the calling code.

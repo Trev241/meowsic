@@ -105,9 +105,11 @@ The package must expose documented functions or classes for the following operat
 - Detect syllable-like events.
 - Load and validate meow sample audio.
 - Fetch a meow sample from an approved public resource.
+- Detect note onsets from the vocal stem.
 - Render a meow vocal from sample audio, events, and pitch data.
 - Mix meow vocal with instrumental audio.
 - Run the full pipeline from Python.
+- Objectively score a rendered meow vocal against the source vocal (MeowScore).
 
 The high-level API must not require users to launch a CLI or browser dashboard.
 
@@ -205,6 +207,8 @@ Required fields:
 - meow sample license metadata when fetched,
 - source ingestion metadata when fetched from YouTube.
 
+The result should also expose, for inspection and quality scoring: the extracted vocal stem, the pitch contour, the detected events, and the rendered meow vocal.
+
 ## 6. Pipeline Behavior
 
 ### 6.1 Audio Loading
@@ -259,14 +263,19 @@ The default implementation should be deterministic and dependency-light. Higher-
 
 ### 6.4 Event Detection
 
-The MVP must estimate syllable-like events from the vocal stem using available pitch and energy information.
+The MVP must estimate syllable-like events from the vocal stem so the rendered meows track the song's rhythm.
 
-The detector should:
+The default `onset` detector should:
 
-- ignore low-energy unvoiced regions,
-- split long voiced regions into smaller events,
+- locate note attacks using a spectral-flux onset envelope with adaptive thresholding,
+- trigger one event per onset, restricted to voiced/active regions,
+- re-articulate held notes into repeated events at a configurable period so sustained singing stays upbeat rather than one long meow,
 - reject events shorter than a configurable minimum duration,
-- preserve original timing closely enough for recognizable phrasing.
+- expose `onset_threshold` (density), `onset_min_interval`, `rearticulate`, and `rearticulate_interval`.
+
+An `energy` detector (contiguous voiced regions split at energy minima) must remain available as a fallback and is used automatically when no audio is supplied or no onsets are found.
+
+Event density should approximate the vocal's syllable/note rate; a detector that produces far fewer events than the vocal has note onsets is a defect.
 
 Lyrics-based alignment is a future enhancement, not an MVP requirement.
 
@@ -307,6 +316,16 @@ Each rendered event should:
 
 Rendering may use pitch shifting, time stretching, granular resampling, formant-preserving processing, or phase-vocoder-style processing. The input sound must still originate from a recorded meow sample.
 
+Default engine — the note-based "cat cover" formula:
+
+- The melody must be segmented into discrete notes, each snapped to the nearest semitone, and octave-transposed into the cat register so the result is in tune and preserves the tune's intervals.
+- One whole, recognizable meow must be rendered per note — pitch-shifted to the note and fit to its duration. Short notes may compress the whole meow (`note_fit="compress"`) or play only its onset (`note_fit="trim"`); long notes loop. This must not degrade into a continuous drone or chopped tone fragments.
+- Pitch shifting must offer a formant-preserving option (`pitch_shift_method="psola"`, via the optional `pytsmod` dependency) as well as a plain resample option.
+- The meow sample must be cleaned before rendering: low-passed (`meow_lowpass_hz`) to remove HF grain from low-sample-rate recordings, and its loud "body" isolated so notes play the meow rather than a quiet/noisy lead-in.
+- Very short notes must be merge-able (`note_merge_duration`) so each meow has room to be recognizable.
+
+Experimental engines (`instrument`, `granular`) may also be provided but must not be the default. Any time-scaling they use must be pitch-preserving (WSOLA/PSOLA) and free of phase-incoherent buzzing.
+
 Current pitch behavior:
 
 - Original vocal pitch is analyzed as a contour.
@@ -330,6 +349,18 @@ The output should:
 - preserve the original instrumental timing,
 - write a WAV file.
 
+### 6.8 Quality Evaluation
+
+The package must expose an objective quality metric comparing a rendered meow vocal to the source vocal, so parameter changes are measurable rather than only judged by ear.
+
+The metric ("MeowScore", range `[0, 1]`) must combine:
+
+- rhythm: onset F-measure between the rendered meows and the vocal's note attacks (within a small time tolerance),
+- melody: correlation between the rendered meow's log-F0 contour and the vocal's,
+- dynamics: correlation between the loudness (RMS) envelopes.
+
+It must be dependency-light (numpy-only) and return the component sub-scores alongside the composite. The dashboard should display the MeowScore and its breakdown after each render.
+
 ## 7. Configuration Requirements
 
 The pipeline should expose configuration for:
@@ -340,7 +371,19 @@ The pipeline should expose configuration for:
 - minimum event duration,
 - maximum event duration,
 - energy threshold,
+- render engine (`notes`/`instrument`/`granular`),
+- note minimum and merge durations,
+- note fit (`compress`/`trim`),
+- pitch shift method (`resample`/`psola`),
+- meow low-pass cutoff,
+- event detection mode (`onset`/`energy`),
+- onset detection frame/hop, threshold, and minimum interval,
+- re-articulation enable and interval,
 - meow gain,
+- meow brightness,
+- meow tonal-core use, tolerance, and attack,
+- meow full-syllable mode,
+- default meow sample name,
 - cat minimum pitch,
 - cat maximum pitch,
 - cat melody contour strength,
@@ -371,8 +414,13 @@ The dashboard must:
 - require explicit user action before fetching from YouTube,
 - allow fetching a licensed public meow sample when none is supplied (default enabled),
 - expose cat-register sliders with plain-language notes,
-- present System Health prominently via a floating panel at the top of the interface,
-- output results in sequential order: Extracted Vocal -> Visualization -> Playback -> File,
+- expose meow-voice controls (brightness, tonal core, full-syllable),
+- expose rhythm & detection controls (event mode, onset sensitivity, minimum interval, re-articulation),
+- expose mix-level controls,
+- default the cached meow-sample picker to `B_CAN01_EU_FN_GIA01_205.wav` with an audio preview,
+- present System Health prominently via a floating panel,
+- display the MeowScore and its metric breakdown, plus a melody/rhythm tracking plot,
+- output results including Extracted Vocal, Visualization, Playback, and downloadable File,
 - show progress/status,
 - show clear, graceful error toasts via `gr.Error` without crashing the application state,
 - avoid hiding processing failures.
@@ -433,6 +481,9 @@ Minimum tests:
 - Meow sample rendering produces non-silent audio.
 - Full pipeline smoke test with synthetic source, vocal, instrumental stems, and sample meow audio.
 - Cat-register pitch mapping test to ensure melody contour is preserved inside the target register.
+- WSOLA time-scaling preserves pitch while changing duration.
+- Onset detection finds rhythmic events, and onset mode is denser than the legacy energy mode.
+- MeowScore returns near-maximal values when a vocal is compared against itself.
 
 Tests should use generated synthetic audio fixtures and tiny test meow fixtures where license permits. Do not commit copyrighted music.
 
