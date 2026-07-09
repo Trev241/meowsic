@@ -80,11 +80,43 @@ def launch_dashboard(
 
         with gr.Group():
             gr.Markdown("## Meow Sample")
-            meow_sample_file = gr.File(label="Meow sample WAV", file_types=[".wav"], type="filepath")
+            gr.Markdown(
+                "Pick from cached samples below, upload your own WAV, or leave empty to auto-fetch from Zenodo."
+            )
+            with gr.Row():
+                meow_sample_dropdown = gr.Dropdown(
+                    choices=[],
+                    label="Cached samples (auto-fetched from Zenodo)",
+                    value=None,
+                    allow_custom_value=False,
+                    interactive=True,
+                )
+                refresh_samples_btn = gr.Button("↺ Refresh", scale=0, size="sm")
+            meow_sample_preview = gr.Audio(label="Preview selected sample", type="filepath", interactive=False)
+            meow_sample_file = gr.File(label="Upload custom meow WAV (overrides picker)", file_types=[".wav"], type="filepath")
             meow_sample_url = gr.Textbox(label="Public sample URL", placeholder="https://.../meow.wav")
             meow_sample_license = gr.Textbox(label="License", placeholder="CC0 or CC BY")
             meow_sample_attribution = gr.Textbox(label="Attribution")
             enable_public_sample_fetch = gr.Checkbox(label="Enable public sample fetch", value=True)
+
+            def _get_sample_choices() -> list[str]:
+                from meowsic.samples import list_cached_samples
+                samples = list_cached_samples(MeowsicConfig(meow_sample_cache_dir=workspace / "cache" / "meow_samples"))
+                return [str(p) for p in samples]
+
+            refresh_samples_btn.click(
+                fn=lambda: gr.update(choices=_get_sample_choices()),
+                outputs=meow_sample_dropdown,
+            )
+            meow_sample_dropdown.change(
+                fn=lambda v: v if v else None,
+                inputs=meow_sample_dropdown,
+                outputs=meow_sample_preview,
+            )
+            app.load(
+                fn=lambda: gr.update(choices=_get_sample_choices()),
+                outputs=meow_sample_dropdown,
+            )
 
         with gr.Group():
             gr.Markdown("## Cat Register")
@@ -123,6 +155,7 @@ def launch_dashboard(
                 vocal_file,
                 instrumental_file,
                 meow_sample_file,
+                meow_sample_dropdown,
                 meow_sample_url,
                 meow_sample_license,
                 meow_sample_attribution,
@@ -157,6 +190,7 @@ def _render_from_dashboard(
     vocal_file: Any,
     instrumental_file: Any,
     meow_sample_file: Any,
+    meow_sample_dropdown: str | None,
     meow_sample_url: str,
     meow_sample_license: str,
     meow_sample_attribution: str,
@@ -185,6 +219,9 @@ def _render_from_dashboard(
         cat_pitch_contour_strength=float(cat_contour_strength),
     )
 
+    # Priority: uploaded file > dropdown selection > auto-fetch
+    resolved_sample_path = _file_path(meow_sample_file) or meow_sample_dropdown or None
+
     try:
         import gradio as gr
         result = process_song(
@@ -193,7 +230,7 @@ def _render_from_dashboard(
             output_path=output_path,
             vocal_path=_file_path(vocal_file),
             instrumental_path=_file_path(instrumental_file),
-            meow_sample_path=_file_path(meow_sample_file),
+            meow_sample_path=resolved_sample_path,
             config=config,
         )
     except Exception as exc:
