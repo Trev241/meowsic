@@ -125,6 +125,8 @@ def fetch_default_meow(config: MeowsicConfig | None = None) -> MeowSample:
     url = "https://zenodo.org/api/records/4008297/files/dataset.zip/content"
     marker = cache_dir / ".zenodo_fetched"
 
+    preferred_name = config.default_meow_sample_name
+
     if not marker.exists():
         try:
             with urllib.request.urlopen(url, timeout=60) as response:
@@ -133,7 +135,15 @@ def fetch_default_meow(config: MeowsicConfig | None = None) -> MeowSample:
                 wav_files = [n for n in z.namelist() if n.lower().endswith(".wav")]
                 if not wav_files:
                     raise SampleFetchError("No WAV files found in default Zenodo dataset")
-                for entry in wav_files[:_DEFAULT_SAMPLE_COUNT]:
+                # Make sure the preferred (uniform) meow is extracted even if it is
+                # not among the first entries of the archive.
+                selected = wav_files[:_DEFAULT_SAMPLE_COUNT]
+                preferred_entry = next(
+                    (n for n in wav_files if Path(n).name == preferred_name), None
+                )
+                if preferred_entry and preferred_entry not in selected:
+                    selected.append(preferred_entry)
+                for entry in selected:
                     name = Path(entry).name
                     dest = cache_dir / name
                     if not dest.exists():
@@ -145,11 +155,12 @@ def fetch_default_meow(config: MeowsicConfig | None = None) -> MeowSample:
         except Exception as exc:
             raise SampleFetchError(f"Failed to fetch default Zenodo meow: {exc}") from exc
 
-    # Pick first cached wav as default
     cached = sorted(cache_dir.glob("*.wav"))
     if not cached:
         raise SampleFetchError("Zenodo samples were not found in cache after fetch")
-    local_path = cached[0]
+    # Prefer the configured uniform meow; fall back to the first cached sample.
+    preferred_path = cache_dir / preferred_name
+    local_path = preferred_path if preferred_path.exists() else cached[0]
 
     metadata = MeowSampleMetadata(
         local_path=local_path,

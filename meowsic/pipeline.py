@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .analysis import detect_syllable_events, estimate_pitch_contour
+from .analysis import detect_notes, detect_syllable_events, estimate_pitch_contour
 from .errors import MeowsicError
 from .io import load_wav, write_wav
 from .render import mix_tracks, render_meow_vocal
@@ -38,7 +38,10 @@ def process_song(
     )
     sample = resolve_meow_sample(meow_sample_path=meow_sample_path, config=config)
     contour = estimate_pitch_contour(stems.vocal, config)
-    events = detect_syllable_events(contour, config)
+    if config.render_mode == "notes":
+        events = detect_notes(contour, config)
+    else:
+        events = detect_syllable_events(contour, config, audio=stems.vocal)
     if not events:
         raise MeowsicError("No detectable vocal events were found")
 
@@ -61,4 +64,8 @@ def process_song(
         stem_strategy=stems.strategy,
         meow_sample=sample.metadata,
         source=source_metadata,
+        vocal_stem=stems.vocal,
+        pitch_contour=contour,
+        meow_vocal=meow_vocal,
+        events=events,
     )

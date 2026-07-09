@@ -15,7 +15,10 @@ dependencies = [
 [project.optional-dependencies]
 demucs = ["demucs>=4", "torchaudio>=2.6,<2.7", "soundfile>=0.12"]
 youtube = ["yt-dlp>=2024.1.1"]
-dashboard = ["gradio>=5"]
+dashboard = ["gradio>=5", "matplotlib"]
+# Formant-preserving pitch shifting (pitch_shift_method="psola"). Optional: the
+# default resample pitch shift and the note engine work without it.
+psola = ["pytsmod>=0.3"]
 dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]

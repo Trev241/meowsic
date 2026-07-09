@@ -45,6 +45,18 @@ def run_demucs(source_path: str | Path, *, config: MeowsicConfig | None = None) 
     output_dir = Path(config.demucs_cache_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    stem_dir = output_dir / config.demucs_model / source_path.stem
+    vocal_path = stem_dir / "vocals.wav"
+    instrumental_path = stem_dir / "no_vocals.wav"
+
+    if vocal_path.exists() and instrumental_path.exists():
+        return StemSet(
+            vocal=load_wav(vocal_path),
+            instrumental=load_wav(instrumental_path),
+            strategy="demucs_two_stems_vocals",
+            metadata={"vocal_path": str(vocal_path), "instrumental_path": str(instrumental_path)},
+        )
+
     args = [
         "--two-stems",
         "vocals",
