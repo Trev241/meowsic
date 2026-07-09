@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .analysis import estimate_sample_pitch
-from .dsp import ensure_sample_rate, match_length, peak_normalize, resample_linear, time_stretch_linear, to_channels
+from .dsp import crossfade_loop, ensure_sample_rate, match_length, peak_normalize, resample_linear, time_stretch_linear, time_stretch_ola, to_channels
 from .types import AudioBuffer, MeowSample, MeowsicConfig, PitchContour, SyllableEvent
 
 
@@ -69,19 +69,27 @@ def _render_event_sample(
     ratio = float(np.clip(target_pitch / max(source_pitch, 1e-6), 0.25, 4.0))
     pitched_length = max(1, int(round(source_sample.shape[0] / ratio)))
     pitched = time_stretch_linear(source_sample, pitched_length)
-    return _fit_length_preserve_pitch(pitched, target_length)
+    return _fit_length_preserve_pitch(pitched, target_length, source_pitch, target_pitch)
 
 
-def _fit_length_preserve_pitch(samples: np.ndarray, target_length: int) -> np.ndarray:
+def _fit_length_preserve_pitch(samples: np.ndarray, target_length: int, source_pitch: float, target_pitch: float) -> np.ndarray:
+    """Fit samples to target_length using the best strategy depending on stretch ratio.
+
+    - If the target fits within the sample: simple trim.
+    - If stretch is < 3x: OLA time-stretch (good quality, preserves pitch texture).
+    - If stretch is >= 3x (long held note): crossfade loop (avoids robotic artifacts).
+    """
     if target_length <= 0:
         return np.zeros(0, dtype=np.float32)
     if samples.size == 0:
         return np.zeros(target_length, dtype=np.float32)
     if samples.shape[0] >= target_length:
         return samples[:target_length].astype(np.float32, copy=False)
-    repeats = int(np.ceil(target_length / samples.shape[0]))
-    tiled = np.tile(samples, repeats)[:target_length]
-    return tiled.astype(np.float32, copy=False)
+    stretch_ratio = target_length / samples.shape[0]
+    if stretch_ratio < 3.0:
+        return time_stretch_ola(samples, target_length)
+    # For very long holds, OLA alone causes buzzing — crossfade-loop instead
+    return crossfade_loop(samples, target_length)
 
 
 class _CatPitchMapper:
