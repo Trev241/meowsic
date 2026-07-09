@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.meowsic-dashboard/
+build/
+dist/
+*.egg-info/
+
+# Local generated artifacts.
+outputs/
+cache/
+uploads/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.aiff
+*.aif
