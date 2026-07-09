@@ -32,7 +32,32 @@ def launch_dashboard(
     selected_port = _find_available_port(host, port)
     print(f"Meowsic dashboard running at http://{host}:{selected_port}", flush=True)
 
-    with gr.Blocks(title="Meowsic") as app:
+    css = """
+    #health-section {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 300px;
+        z-index: 1000;
+        background: var(--background-fill-primary);
+        border: 1px solid var(--border-color-primary);
+        border-radius: 8px;
+        padding: 5px;
+    }
+    """
+
+    with gr.Blocks(title="Meowsic", css=css) as app:
+        with gr.Accordion("System Health", open=False, elem_id="health-section"):
+            health_json = gr.JSON(label="Dependency Status")
+            refresh_health_btn = gr.Button("Refresh Health")
+
+            def get_health():
+                from meowsic.health import check_health
+                return check_health()
+
+            refresh_health_btn.click(fn=get_health, outputs=health_json)
+            app.load(fn=get_health, outputs=health_json)
+
         gr.Markdown("# Meowsic")
         gr.Markdown(
             "Render a song with sample-based meow vocals. YouTube fetching is optional and must be explicitly enabled."
@@ -59,7 +84,7 @@ def launch_dashboard(
             meow_sample_url = gr.Textbox(label="Public sample URL", placeholder="https://.../meow.wav")
             meow_sample_license = gr.Textbox(label="License", placeholder="CC0 or CC BY")
             meow_sample_attribution = gr.Textbox(label="Attribution")
-            enable_public_sample_fetch = gr.Checkbox(label="Enable public sample fetch")
+            enable_public_sample_fetch = gr.Checkbox(label="Enable public sample fetch", value=True)
 
         with gr.Group():
             gr.Markdown("## Cat Register")
@@ -84,7 +109,9 @@ def launch_dashboard(
 
         render_button = gr.Button("Render", variant="primary")
         status = gr.Textbox(label="Status", lines=5)
-        output_audio = gr.Audio(label="Playback", type="filepath")
+        vocal_stem_audio = gr.Audio(label="Extracted Vocal Stem", type="filepath")
+        visualization = gr.Plot(label="Vocal Track & Cat Register Coverage")
+        output_audio = gr.Audio(label="Cat Song Playback", type="filepath")
         output_file = gr.File(label="Output WAV", file_types=[".wav"])
 
         render_button.click(
@@ -104,7 +131,7 @@ def launch_dashboard(
                 cat_max_pitch,
                 cat_contour_strength,
             ],
-            outputs=[status, output_audio, output_file],
+            outputs=[status, vocal_stem_audio, visualization, output_audio, output_file],
         )
 
     app.launch(server_name=host, server_port=selected_port, inbrowser=open_browser)
@@ -137,7 +164,7 @@ def _render_from_dashboard(
     cat_min_pitch: float,
     cat_max_pitch: float,
     cat_contour_strength: float,
-) -> tuple[str, str | None, str | None]:
+) -> tuple[str, str | None, str | None, Any, str | None]:
     run_id = uuid.uuid4().hex[:10]
     output_dir = workspace / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -158,15 +185,20 @@ def _render_from_dashboard(
         cat_pitch_contour_strength=float(cat_contour_strength),
     )
 
-    result = process_song(
-        source_path=_file_path(source_file),
-        source_url=_blank_to_none(source_url),
-        output_path=output_path,
-        vocal_path=_file_path(vocal_file),
-        instrumental_path=_file_path(instrumental_file),
-        meow_sample_path=_file_path(meow_sample_file),
-        config=config,
-    )
+    try:
+        import gradio as gr
+        result = process_song(
+            source_path=_file_path(source_file),
+            source_url=_blank_to_none(source_url),
+            output_path=output_path,
+            vocal_path=_file_path(vocal_file),
+            instrumental_path=_file_path(instrumental_file),
+            meow_sample_path=_file_path(meow_sample_file),
+            config=config,
+        )
+    except Exception as exc:
+        import gradio as gr
+        raise gr.Error(f"Rendering failed: {exc}")
 
     message = "\n".join(
         [
@@ -177,7 +209,42 @@ def _render_from_dashboard(
         ]
     )
     output = str(result.output_path)
-    return message, output, output
+    
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    if result.vocal_stem:
+        samples = result.vocal_stem.mono()
+        times = np.linspace(0, result.duration, len(samples))
+        ax.plot(times, samples, color="lightgray", label="Vocal Waveform", alpha=0.7)
+    
+    if result.pitch_contour:
+        ax2 = ax.twinx()
+        valid = result.pitch_contour.voiced
+        t = result.pitch_contour.times[valid]
+        f0 = result.pitch_contour.f0_hz[valid]
+        ax2.scatter(t, f0, color="blue", s=2, label="Original Pitch", alpha=0.5)
+        
+        ax2.axhspan(cat_min_pitch, cat_max_pitch, color="orange", alpha=0.2, label="Cat Register")
+        ax2.set_ylabel("Pitch (Hz)")
+        
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax2.legend(lines + lines2, labels + labels2, loc="upper right")
+
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Amplitude")
+    plt.title("Vocal Waveform & Pitch vs. Cat Register")
+    plt.tight_layout()
+
+    vocal_output_path = None
+    if result.vocal_stem:
+        from meowsic.io import write_wav
+        vocal_output_path = str(output_dir / f"meowsic-{run_id}-vocals.wav")
+        write_wav(vocal_output_path, result.vocal_stem)
+
+    return message, vocal_output_path, fig, output, output
 
 
 def _file_path(value: Any) -> str | None:
