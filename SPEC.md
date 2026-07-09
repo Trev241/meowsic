@@ -22,6 +22,8 @@ The MVP prioritizes a practical, inspectable pipeline over perfect realism. It s
 - Public meow sample fetching with license metadata.
 - Mixdown of the rendered meow vocal with the instrumental track.
 - Optional Gradio-based browser dashboard for manual use.
+- Dashboard audio playback and output WAV download.
+- Setup and environment verification scripts.
 
 ### Out of Scope
 
@@ -86,7 +88,9 @@ A user launches the optional local browser dashboard, selects or enters:
 
 then runs the same underlying pipeline used by the importable API.
 
-If no meow sample is provided, the GUI may offer to fetch a sample from an approved public resource with compatible license metadata.
+If no meow sample is provided, the dashboard may offer to fetch a sample from an approved public resource with compatible license metadata.
+
+After rendering, the dashboard must expose the output for in-browser playback and file download.
 
 ## 4. Public API Requirements
 
@@ -303,6 +307,16 @@ Each rendered event should:
 
 Rendering may use pitch shifting, time stretching, granular resampling, formant-preserving processing, or phase-vocoder-style processing. The input sound must still originate from a recorded meow sample.
 
+Current pitch behavior:
+
+- Original vocal pitch is analyzed as a contour.
+- Absolute singer pitch is mapped into a configurable cat register.
+- `cat_min_pitch_hz` defines the lowest rendered meow pitch.
+- `cat_max_pitch_hz` defines the highest rendered meow pitch.
+- `cat_pitch_contour_strength` controls how strongly the output follows the original melody shape.
+- Lower contour strength flattens toward one cat register.
+- Higher contour strength follows more of the original song's pitch movement.
+
 ### 6.7 Mixdown
 
 The mixdown stage must combine:
@@ -337,6 +351,7 @@ The pipeline should expose configuration for:
 - YouTube fetch enable/disable flag,
 - YouTube download/cache directory,
 - `yt-dlp` backend configuration,
+- `yt-dlp` should be upgraded to the newest available build by setup tooling,
 - Demucs backend configuration,
 - meow sample path,
 - meow sample fetch source,
@@ -355,6 +370,9 @@ The dashboard must:
 - allow entry of a YouTube URL as an alternative source input,
 - require explicit user action before fetching from YouTube,
 - allow fetching a licensed public meow sample when none is supplied,
+- expose cat-register sliders with plain-language notes,
+- return the rendered WAV to an in-browser audio player,
+- return the rendered WAV as a downloadable file,
 - call the same high-level Python API as external callers,
 - show progress/status,
 - show clear errors,
@@ -394,6 +412,9 @@ The MVP is acceptable when:
 - The result reports event count, stem strategy, and meow sample source.
 - The optional browser dashboard can call the same processing function.
 - The dashboard dependency is optional and core imports work without Gradio installed.
+- The dashboard can play back the rendered WAV in-browser.
+- Setup and verification scripts provision `.venv` and report the dependency versions/backends.
+- `yt-dlp` is upgraded to the latest available build by the setup script.
 - Heavyweight ML dependencies are not required for core import.
 - Generated audio and large artifacts are not committed.
 - The implementation behavior is consistent with `PLAN.md` and `AGENTS.md`.
@@ -412,8 +433,11 @@ Minimum tests:
 - Public meow sample fetch behavior with mocked network/file cache.
 - Meow sample rendering produces non-silent audio.
 - Full pipeline smoke test with synthetic source, vocal, instrumental stems, and sample meow audio.
+- Cat-register pitch mapping test to ensure melody contour is preserved inside the target register.
 
 Tests should use generated synthetic audio fixtures and tiny test meow fixtures where license permits. Do not commit copyrighted music.
+
+Local manual validation has also covered generated E2E renders through both provided stems and Demucs-derived stems.
 
 ## 12. Future Extensions
 

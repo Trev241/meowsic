@@ -18,6 +18,8 @@ The MVP is not intended to be a perfect neural singing system. It is a practical
 - Support optional track ingestion from YouTube via `yt-dlp`, subject to user responsibility for rights and platform terms.
 - Mix the rendered meow vocal back with the instrumental track.
 - Include an optional Gradio-based browser dashboard for manual use in this repository.
+- Let users play the rendered output directly in the dashboard and download the WAV.
+- Provide setup and verification scripts that create `.venv`, install optional dependencies, keep `yt-dlp` current, and install the tested Windows Demucs/Torchaudio/SoundFile stack.
 - Keep heavyweight ML integrations isolated so the core package can still be imported in a basic Python environment.
 
 ## MVP Requirements
@@ -45,6 +47,8 @@ The dashboard should:
 - Run as a local browser-based interface using Gradio rather than a native GUI toolkit such as Tkinter.
 - Allow users to choose input audio, paste a YouTube URL, optional vocal stem, optional instrumental stem, optional meow sample, and output path.
 - Allow users to fetch a meow sample from a configured public resource when they do not provide one.
+- Expose simple cat-register controls with notes explaining low/high pitch and contour strength behavior.
+- Provide browser playback and output WAV download.
 - Run the pipeline without requiring a CLI.
 - Display clear status and error messages.
 
@@ -87,6 +91,12 @@ The result may sound processed. Musical recognizability is a higher priority tha
 
 Pitch rendering should preserve the original melody contour while mapping the absolute pitches into a configurable cat-like register. This avoids forcing every meow to the singer's exact pitch when that pitch would sound unnaturally high or low for the selected sample.
 
+The current implementation uses:
+
+- `cat_min_pitch_hz` for the lowest rendered meow pitch.
+- `cat_max_pitch_hz` for the highest rendered meow pitch.
+- `cat_pitch_contour_strength` to blend between a flatter cat register and stronger original melody contour.
+
 ### YouTube Track Ingestion
 
 `yt-dlp` support should be optional and isolated behind an adapter.
@@ -97,7 +107,24 @@ Requirements:
 - The dashboard and API should make clear that users are responsible for having rights to download and transform the track and for complying with platform terms.
 - Downloads should be cached as local source assets with metadata: original URL, extractor, title when available, retrieval date, and local path.
 - The core package should still import when `yt-dlp` is not installed.
+- The setup script should upgrade `yt-dlp` to the latest available build because extractor behavior changes frequently.
 - Missing `yt-dlp`, failed extraction, private/unavailable videos, and unsupported output formats must produce actionable errors.
+
+### Local Dependency Setup
+
+The project includes:
+
+- `scripts/setup.ps1` to create `.venv` and install all optional dependency groups.
+- `scripts/verify_env.ps1` to print the installed versions and Torchaudio audio backends.
+
+The tested Windows Demucs stack is:
+
+- `torch==2.6.0`
+- `torchaudio==2.6.0`
+- `soundfile>=0.12`
+- `demucs==4.0.1`
+
+SoundFile is required so Torchaudio can write Demucs WAV stems reliably on Windows. Avoid mismatched newer TorchAudio/TorchCodec combinations; they can cause TorchCodec DLL loading failures.
 
 ### Public Meow Sample Resources
 
@@ -131,6 +158,8 @@ Prefer CC0. CC BY may be allowed when attribution metadata is preserved. Restric
 - Keep `yt-dlp` isolated behind an adapter so the core package can import without `yt-dlp` installed.
 - Keep Gradio isolated to the dashboard entry point so the core package can import without dashboard dependencies installed.
 - Demucs integration should fail with actionable errors when dependencies, models, or compute are unavailable.
+- Prefer `scripts/setup.ps1` and `scripts/verify_env.ps1` before troubleshooting missing dependency issues.
+- Keep `yt-dlp` updated through the setup script.
 - YouTube ingestion should require explicit user action and should not bypass rights/platform-term warnings.
 - Preserve user-owned files and do not overwrite outputs unless explicitly requested by the calling code.
 - The pipeline should work best on WAV files first; broader format support can be added through optional audio libraries.
