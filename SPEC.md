@@ -21,7 +21,7 @@ The MVP prioritizes a practical, inspectable pipeline over perfect realism. It s
 - Meow vocal rendering from user-provided or public-licensed meow sample audio.
 - Public meow sample fetching with license metadata.
 - Mixdown of the rendered meow vocal with the instrumental track.
-- Optional Gradio-based browser dashboard for manual use.
+- Optional Gradio-based browser dashboard with Visualization, System Health, and Stem outputs.
 - Dashboard audio playback and output WAV download.
 - Setup and environment verification scripts.
 
@@ -88,7 +88,7 @@ A user launches the optional local browser dashboard, selects or enters:
 
 then runs the same underlying pipeline used by the importable API.
 
-If no meow sample is provided, the dashboard may offer to fetch a sample from an approved public resource with compatible license metadata.
+If no meow sample is provided, the dashboard will automatically fetch a default CC-BY 4.0 meow sample from the Zenodo CatMeows dataset.
 
 After rendering, the dashboard must expose the output for in-browser playback and file download.
 
@@ -369,13 +369,12 @@ The dashboard must:
 - allow file selection for source, optional vocal stem, optional instrumental stem, optional meow sample, and output,
 - allow entry of a YouTube URL as an alternative source input,
 - require explicit user action before fetching from YouTube,
-- allow fetching a licensed public meow sample when none is supplied,
+- allow fetching a licensed public meow sample when none is supplied (default enabled),
 - expose cat-register sliders with plain-language notes,
-- return the rendered WAV to an in-browser audio player,
-- return the rendered WAV as a downloadable file,
-- call the same high-level Python API as external callers,
+- present System Health prominently via a floating panel at the top of the interface,
+- output results in sequential order: Extracted Vocal -> Visualization -> Playback -> File,
 - show progress/status,
-- show clear errors,
+- show clear, graceful error toasts via `gr.Error` without crashing the application state,
 - avoid hiding processing failures.
 
 The dashboard must not become the primary interface.
@@ -449,3 +448,4 @@ Potential future work:
 - Neural timbre conversion after deterministic sample-based guide-vocal rendering.
 - Diagnostics for pitch confidence, clipping, event density, separation quality, and license validation.
 - Optional support for MP3/FLAC through explicit audio backend dependencies.
+- Explore a high-fidelity Neural Pipeline (BS-RoFormer, FCPE, ContentVec, SaMoye-SVC, DDSP-SVC) once the deterministic approach reaches its quality cap.

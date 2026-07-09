@@ -17,7 +17,7 @@ The MVP is not intended to be a perfect neural singing system. It is a practical
 - If users do not provide a meow file, fetch a meow sample from an approved public resource with compatible license metadata.
 - Support optional track ingestion from YouTube via `yt-dlp`, subject to user responsibility for rights and platform terms.
 - Mix the rendered meow vocal back with the instrumental track.
-- Include an optional Gradio-based browser dashboard for manual use in this repository.
+- Include an optional Gradio-based browser dashboard with visualization and stem outputs.
 - Let users play the rendered output directly in the dashboard and download the WAV.
 - Provide setup and verification scripts that create `.venv`, install optional dependencies, keep `yt-dlp` current, and install the tested Windows Demucs/Torchaudio/SoundFile stack.
 - Keep heavyweight ML integrations isolated so the core package can still be imported in a basic Python environment.
@@ -46,11 +46,11 @@ The dashboard should:
 
 - Run as a local browser-based interface using Gradio rather than a native GUI toolkit such as Tkinter.
 - Allow users to choose input audio, paste a YouTube URL, optional vocal stem, optional instrumental stem, optional meow sample, and output path.
-- Allow users to fetch a meow sample from a configured public resource when they do not provide one.
+- Allow users to fetch a meow sample from a configured public resource when they do not provide one (enabled by default).
 - Expose simple cat-register controls with notes explaining low/high pitch and contour strength behavior.
-- Provide browser playback and output WAV download.
-- Run the pipeline without requiring a CLI.
-- Display clear status and error messages.
+- Show System Health section as a floating panel at the top right of the dashboard.
+- Display clear, graceful error toasts using `gr.Error` on failures (e.g. missing dependencies).
+- Expose outputs in order: Extracted Vocal Stem -> Visualization -> Rendered Cat Song -> Downloadable Output.
 
 ### Audio Quality Target
 
@@ -85,7 +85,7 @@ The result may sound processed. Musical recognizability is a higher priority tha
 3. If stems are not provided, run Demucs to derive vocal and instrumental/no-vocals stems.
 4. Estimate pitch and energy from the vocal stem.
 5. Detect syllable-like events from voiced regions and energy onsets.
-6. Load a user-provided meow sample or fetch a licensed sample from a configured public resource.
+6. Automatically fetch the default CC-BY CatMeows sample from Zenodo if no meow sample is provided by the user.
 7. Render each event by pitch-shifting and time-stretching the meow sample to follow the original pitch contour and loudness envelope.
 8. Mix with instrumental and write WAV output.
 
@@ -141,6 +141,8 @@ Fetched samples must record:
 - retrieval date,
 - local cache path.
 
+If no specific sample URL is provided, the pipeline automatically fetches the default CC-BY 4.0 "CatMeows" dataset sample from Zenodo.
+
 Prefer CC0. CC BY may be allowed when attribution metadata is preserved. Restrictive licenses should be rejected unless a future product requirement explicitly supports them.
 
 ### Future Improvements
@@ -150,6 +152,11 @@ Prefer CC0. CC BY may be allowed when attribution metadata is preserved. Restric
 - Add a curated licensed meow sample bank and sample selection.
 - Add neural timbre conversion after the deterministic sample-based meow guide vocal.
 - Add objective diagnostics: pitch-tracking confidence, event count, clipping, stem quality checks, and sample license validation.
+- **High-Fidelity Neural Pipeline Migration**: Once the deterministic pipeline reaches its performance cap, explore migrating to a state-of-the-art Deep Learning approach:
+  - Isolate stems using BS-RoFormer (Mel-RoFormer).
+  - Utilize FCPE (Fast Context-based Pitch Estimation) for sub-cent pitch tracking.
+  - Apply ContentVec / Soft HuBERT for timbre-invariant linguistic feature extraction.
+  - Adopt SaMoye-SVC paired with DDSP-SVC and a ReFlow diffusion step for zero-shot, realistic feline timbre generation.
 
 ## Developer Notes
 
