@@ -16,6 +16,7 @@ contract.
 - User-provided vocal/instrumental stems are supported.
 - Demucs is supported as an optional stem backend when installed.
 - User-provided meow WAV samples are supported.
+- Meow pitch is mapped into a configurable cat-like register while preserving melodic contour.
 - Public meow sample fetching is explicit and requires license metadata.
 - YouTube ingestion is optional through `yt-dlp` and must be explicitly enabled.
 - Local browser dashboard is available; no native GUI toolkit is used.
@@ -34,6 +35,22 @@ result = process_song(
     config=MeowsicConfig(overwrite=True),
 )
 ```
+
+Tune the cat register if the output sounds too high or too flat:
+
+```python
+MeowsicConfig(
+    cat_min_pitch_hz=220,
+    cat_max_pitch_hz=520,
+    cat_pitch_contour_strength=0.75,
+)
+```
+
+Cat register controls:
+
+- `cat_min_pitch_hz`: lowest meow pitch. Lower values make the cat voice deeper and heavier; higher values keep even low notes more kitten-like.
+- `cat_max_pitch_hz`: highest meow pitch. Lower values tame squeaky high notes; higher values allow brighter, sharper meows on melody peaks.
+- `cat_pitch_contour_strength`: melody contour strength. Lower values flatten the tune toward one cat register; higher values follow more of the song's original ups and downs.
 
 If stems are omitted, Meowsic will try Demucs when available:
 
@@ -67,6 +84,42 @@ launch_dashboard()
 ```
 
 Then open the printed local URL in a browser.
+
+## Setup
+
+Use the setup script instead of installing dependencies one at a time:
+
+```powershell
+.\scripts\setup.ps1
+```
+
+If PowerShell blocks local scripts, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+```
+
+The script creates `.venv`, installs all optional dependency groups, pins the
+tested Windows Demucs stack, installs SoundFile for WAV stem output, and upgrades
+`yt-dlp` to the latest available build.
+
+Verify the environment:
+
+```powershell
+.\scripts\verify_env.ps1
+```
+
+Or, with execution-policy bypass:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify_env.ps1
+```
+
+Run the dashboard:
+
+```powershell
+.\.venv\Scripts\python.exe run.py
+```
 
 ## Optional Dependencies
 

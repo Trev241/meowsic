@@ -85,6 +85,8 @@ The result may sound processed. Musical recognizability is a higher priority tha
 7. Render each event by pitch-shifting and time-stretching the meow sample to follow the original pitch contour and loudness envelope.
 8. Mix with instrumental and write WAV output.
 
+Pitch rendering should preserve the original melody contour while mapping the absolute pitches into a configurable cat-like register. This avoids forcing every meow to the singer's exact pitch when that pitch would sound unnaturally high or low for the selected sample.
+
 ### YouTube Track Ingestion
 
 `yt-dlp` support should be optional and isolated behind an adapter.

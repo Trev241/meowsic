@@ -99,6 +99,9 @@ class MeowsicConfig:
     min_event_duration: float = 0.08
     max_event_duration: float = 0.55
     energy_threshold_ratio: float = 0.22
+    cat_min_pitch_hz: float = 220.0
+    cat_max_pitch_hz: float = 520.0
+    cat_pitch_contour_strength: float = 0.75
     meow_gain: float = 0.85
     instrumental_gain: float = 0.9
     output_gain: float = 0.95

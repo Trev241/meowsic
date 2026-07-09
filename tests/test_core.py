@@ -10,11 +10,16 @@ import numpy as np
 
 from meowsic import (
     AudioBuffer,
+    MeowSample,
+    MeowSampleMetadata,
     MeowsicConfig,
+    PitchContour,
+    SyllableEvent,
     fetch_public_meow_sample,
     fetch_youtube_audio,
     load_wav,
     process_song,
+    render_meow_vocal,
     run_demucs,
     write_wav,
 )
@@ -175,6 +180,49 @@ class CoreTests(unittest.TestCase):
             self.assertEqual(sample.metadata.source_type, "fetched_public_resource")
             self.assertEqual(sample.metadata.license, "CC0")
             self.assertGreater(sample.audio.duration, 0)
+
+    def test_render_maps_melody_into_cat_register(self) -> None:
+        sample_rate = 22050
+        t = np.arange(int(sample_rate * 1.0), dtype=np.float32) / sample_rate
+        times = np.linspace(0.0, 1.0, 24, dtype=np.float32)
+        contour = PitchContour(
+            times=times,
+            f0_hz=np.linspace(150.0, 900.0, times.size, dtype=np.float32),
+            voiced=np.ones(times.size, dtype=bool),
+            energy=np.ones(times.size, dtype=np.float32),
+        )
+        events = [
+            SyllableEvent(start=0.05, end=0.35, energy=1.0, pitch_hz=150.0),
+            SyllableEvent(start=0.55, end=0.85, energy=1.0, pitch_hz=900.0),
+        ]
+        sample_audio = 0.6 * np.sin(2 * np.pi * 260.0 * t[: int(sample_rate * 0.25)])
+        sample = MeowSample(
+            audio=AudioBuffer(sample_audio, sample_rate),
+            metadata=MeowSampleMetadata(local_path=Path("fixture.wav"), source_type="user_provided"),
+        )
+
+        rendered = render_meow_vocal(
+            events,
+            contour,
+            sample,
+            sample_rate=sample_rate,
+            duration=1.0,
+            config=MeowsicConfig(cat_min_pitch_hz=220.0, cat_max_pitch_hz=520.0),
+        )
+
+        low_pitch = _dominant_frequency(rendered.mono()[int(0.08 * sample_rate) : int(0.30 * sample_rate)], sample_rate)
+        high_pitch = _dominant_frequency(rendered.mono()[int(0.58 * sample_rate) : int(0.80 * sample_rate)], sample_rate)
+        self.assertGreater(high_pitch, low_pitch)
+        self.assertGreaterEqual(low_pitch, 180.0)
+        self.assertLessEqual(high_pitch, 620.0)
+
+def _dominant_frequency(samples: np.ndarray, sample_rate: int) -> float:
+    windowed = samples * np.hanning(samples.shape[0])
+    spectrum = np.abs(np.fft.rfft(windowed))
+    freqs = np.fft.rfftfreq(samples.shape[0], 1 / sample_rate)
+    usable = (freqs >= 80) & (freqs <= 1000)
+    index = int(np.argmax(spectrum[usable]))
+    return float(freqs[usable][index])
 
 
 if __name__ == "__main__":

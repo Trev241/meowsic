@@ -61,8 +61,30 @@ def launch_dashboard(
             meow_sample_attribution = gr.Textbox(label="Attribution")
             enable_public_sample_fetch = gr.Checkbox(label="Enable public sample fetch")
 
+        with gr.Group():
+            gr.Markdown("## Cat Register")
+            cat_min_pitch = gr.Slider(120, 500, value=220, step=5, label="Lowest meow pitch (Hz)")
+            gr.Markdown(
+                "Lowest meow pitch: lower values make the cat voice deeper and heavier; higher values keep even low notes more kitten-like."
+            )
+            cat_max_pitch = gr.Slider(220, 900, value=520, step=5, label="Highest meow pitch (Hz)")
+            gr.Markdown(
+                "Highest meow pitch: lower values tame squeaky high notes; higher values allow brighter, sharper meows on melody peaks."
+            )
+            cat_contour_strength = gr.Slider(
+                0,
+                1,
+                value=0.75,
+                step=0.05,
+                label="Melody contour strength",
+            )
+            gr.Markdown(
+                "Melody contour strength: lower values flatten the tune toward one cat register; higher values follow more of the song's original ups and downs."
+            )
+
         render_button = gr.Button("Render", variant="primary")
         status = gr.Textbox(label="Status", lines=5)
+        output_audio = gr.Audio(label="Playback", type="filepath")
         output_file = gr.File(label="Output WAV", file_types=[".wav"])
 
         render_button.click(
@@ -78,8 +100,11 @@ def launch_dashboard(
                 meow_sample_license,
                 meow_sample_attribution,
                 enable_public_sample_fetch,
+                cat_min_pitch,
+                cat_max_pitch,
+                cat_contour_strength,
             ],
-            outputs=[status, output_file],
+            outputs=[status, output_audio, output_file],
         )
 
     app.launch(server_name=host, server_port=selected_port, inbrowser=open_browser)
@@ -109,7 +134,10 @@ def _render_from_dashboard(
     meow_sample_license: str,
     meow_sample_attribution: str,
     enable_public_sample_fetch: bool,
-) -> tuple[str, str | None]:
+    cat_min_pitch: float,
+    cat_max_pitch: float,
+    cat_contour_strength: float,
+) -> tuple[str, str | None, str | None]:
     run_id = uuid.uuid4().hex[:10]
     output_dir = workspace / "outputs"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -125,6 +153,9 @@ def _render_from_dashboard(
         meow_sample_attribution=_blank_to_none(meow_sample_attribution),
         meow_sample_cache_dir=workspace / "cache" / "meow_samples",
         demucs_cache_dir=workspace / "cache" / "demucs",
+        cat_min_pitch_hz=float(cat_min_pitch),
+        cat_max_pitch_hz=float(cat_max_pitch),
+        cat_pitch_contour_strength=float(cat_contour_strength),
     )
 
     result = process_song(
@@ -145,7 +176,8 @@ def _render_from_dashboard(
             f"Meow sample: {result.meow_sample.source_type}",
         ]
     )
-    return message, str(result.output_path)
+    output = str(result.output_path)
+    return message, output, output
 
 
 def _file_path(value: Any) -> str | None:

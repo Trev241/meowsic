@@ -25,6 +25,7 @@ def render_meow_vocal(
         source_sample = resample_linear(source_sample, meow_sample.audio.sample_rate, sample_rate)
     source_sample = _trim_silence(source_sample)
     source_pitch = estimate_sample_pitch(AudioBuffer(source_sample, sample_rate), config) or 220.0
+    pitch_mapper = _CatPitchMapper(contour, config)
     energy_reference = max(float(np.percentile(contour.energy, 90)) if contour.energy.size else 0.0, 1e-6)
 
     for event in events:
@@ -32,7 +33,8 @@ def render_meow_vocal(
         end_sample = min(output.shape[0], int(round(event.end * sample_rate)))
         if end_sample <= start_sample:
             continue
-        target_pitch = event.pitch_hz or _pitch_at_time(contour, event.start) or source_pitch
+        original_pitch = event.pitch_hz or _pitch_at_time(contour, event.start) or source_pitch
+        target_pitch = pitch_mapper.map(original_pitch)
         segment = _render_event_sample(source_sample, source_pitch, target_pitch, end_sample - start_sample)
         segment *= _event_envelope(segment.shape[0])
         gain = min(1.4, max(0.2, event.energy / energy_reference)) * config.meow_gain
@@ -67,7 +69,47 @@ def _render_event_sample(
     ratio = float(np.clip(target_pitch / max(source_pitch, 1e-6), 0.25, 4.0))
     pitched_length = max(1, int(round(source_sample.shape[0] / ratio)))
     pitched = time_stretch_linear(source_sample, pitched_length)
-    return time_stretch_linear(pitched, target_length)
+    return _fit_length_preserve_pitch(pitched, target_length)
+
+
+def _fit_length_preserve_pitch(samples: np.ndarray, target_length: int) -> np.ndarray:
+    if target_length <= 0:
+        return np.zeros(0, dtype=np.float32)
+    if samples.size == 0:
+        return np.zeros(target_length, dtype=np.float32)
+    if samples.shape[0] >= target_length:
+        return samples[:target_length].astype(np.float32, copy=False)
+    repeats = int(np.ceil(target_length / samples.shape[0]))
+    tiled = np.tile(samples, repeats)[:target_length]
+    return tiled.astype(np.float32, copy=False)
+
+
+class _CatPitchMapper:
+    def __init__(self, contour: PitchContour, config: MeowsicConfig) -> None:
+        self.config = config
+        valid = contour.f0_hz[contour.voiced & (contour.f0_hz > 0)]
+        if valid.size:
+            self.source_low = float(np.percentile(valid, 10))
+            self.source_high = float(np.percentile(valid, 90))
+            self.source_center = float(np.median(valid))
+        else:
+            self.source_low = config.min_pitch_hz
+            self.source_high = config.max_pitch_hz
+            self.source_center = (config.min_pitch_hz + config.max_pitch_hz) / 2
+
+        if self.source_high <= self.source_low:
+            self.source_high = self.source_low + 1.0
+        self.target_low = min(config.cat_min_pitch_hz, config.cat_max_pitch_hz)
+        self.target_high = max(config.cat_min_pitch_hz, config.cat_max_pitch_hz)
+        self.target_center = (self.target_low + self.target_high) / 2.0
+
+    def map(self, pitch_hz: float) -> float:
+        normalized = (pitch_hz - self.source_low) / (self.source_high - self.source_low)
+        normalized = float(np.clip(normalized, 0.0, 1.0))
+        mapped = self.target_low + normalized * (self.target_high - self.target_low)
+        strength = float(np.clip(self.config.cat_pitch_contour_strength, 0.0, 1.0))
+        blended = self.target_center + (mapped - self.target_center) * strength
+        return float(np.clip(blended, self.target_low, self.target_high))
 
 
 def _pitch_at_time(contour: PitchContour, time: float) -> float | None:
