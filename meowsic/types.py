@@ -77,7 +77,7 @@ class SyllableEvent:
 @dataclass(frozen=True)
 class MeowSampleMetadata:
     local_path: Path
-    source_type: Literal["user_provided", "fetched_public_resource"]
+    source_type: Literal["user_provided", "fetched_public_resource", "default_zenodo", "mocked"]
     source_url: str | None = None
     license: str | None = None
     attribution: str | None = None
@@ -97,7 +97,7 @@ class MeowsicConfig:
     min_pitch_hz: float = 75.0
     max_pitch_hz: float = 1200.0
     min_event_duration: float = 0.08
-    max_event_duration: float = 0.55
+    max_event_duration: float = 5.0
     energy_threshold_ratio: float = 0.22
     cat_min_pitch_hz: float = 220.0
     cat_max_pitch_hz: float = 520.0
@@ -113,7 +113,7 @@ class MeowsicConfig:
     enable_youtube_fetch: bool = False
     youtube_cache_dir: Path = Path("cache/youtube")
     ytdlp_options: dict[str, Any] = field(default_factory=dict)
-    enable_public_sample_fetch: bool = False
+    enable_public_sample_fetch: bool = True
     meow_sample_url: str | None = None
     meow_sample_license: str | None = None
     meow_sample_attribution: str | None = None
@@ -129,3 +129,6 @@ class MeowsicResult:
     stem_strategy: str
     meow_sample: MeowSampleMetadata
     source: SourceMetadata
+    vocal_stem: AudioBuffer | None = None
+    pitch_contour: PitchContour | None = None
+
